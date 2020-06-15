@@ -16,7 +16,7 @@ class VinaSentenceSplitter(object):
 
 def preprocess_text(text):
     text = re.sub(r'、+', '、', text)
-    text = text.replace('(、', '(')
+    text = text.replace(':: ', '')
     text = text.replace('、)', ')')
     text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
@@ -32,7 +32,7 @@ def filter_text(text, min_length, max_length):
     return True
 
 
-regex_link = re.compile(r'\<a href="(.*?)"\>(.*?)\</a\>')
+regex_link = re.compile(r'\w+:\/\/\S*')
 
 
 def main(args):

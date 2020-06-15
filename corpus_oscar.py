@@ -2,7 +2,7 @@ import re
 import json
 import unicodedata
 import argparse
-
+from underthesea import word_tokenize
 from logzero import logger
 from underthesea import sent_tokenize
 
@@ -15,9 +15,9 @@ class VinaSentenceSplitter(object):
 
 def preprocess_text(text):
     text = re.sub(r'、+', '、', text)
-    text = text.replace('(、', '(')
-    text = text.replace('、)', ')')
-    text = text.replace('()', '')
+    text = text.replace('»', '"')
+    text = text.replace('|', ' ')
+    text = text.replace('-', '')
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -49,7 +49,7 @@ def main(args):
 
             # normalize text
             text = unicodedata.normalize('NFC', text)
-
+            text = word_tokenize(sentence, format="text")
             paragraphs = re.split(r'\n\n+', text)[1:]
             sentences = [preprocess_text(s) for p in paragraphs
                          for s in sent_splitter(p)]

@@ -38,44 +38,43 @@ def main(args):
     sent_splitter = VinaSentenceSplitter()
 
     num_processed_docs = 0
-    with open(args.input_file, 'rt') as input_file, \
-         open(args.output_file, 'w') as output_file:
-        for line in input_file:
-            page_item = json.loads(line)
-            text = page_item['text']
+    num_doc = 0 
+    with open(args.input_file, 'rt') as input_file:
+        with open(str(args.output_file)+str(num_doc), 'w') as output_file:
+            for line in input_file:
+                page_item = json.loads(line)
+                text = page_item['text']
 
-            # replace links
-            text = regex_link.sub(r'\2', text)
+                # replace links
+                text = regex_link.sub(r'\2', text)
 
-            # normalize text
-            text = unicodedata.normalize('NFC', text)
-            text = word_tokenize(text, format="text")
-            paragraphs = re.split(r'\n\n+', text)[1:]
-            sentences = [preprocess_text(s) for p in paragraphs
-                         for s in sent_splitter(p)]
-            # ignore too short/long sentences
-            sentences = [s for s in sentences
-                         if filter_text(s, args.min_length, args.max_length)]
-            if sentences:
-                # write document to a file
-                for s in sentences:
-                    assert not '\n' in s, s
-                    assert s, s
-                    output_file.write(s + '\n')
+                # normalize text
+                text = unicodedata.normalize('NFC', text)
+                text = word_tokenize(text, format="text")
+                paragraphs = re.split(r'\n\n+', text)[1:]
+                sentences = [preprocess_text(s) for p in paragraphs
+                            for s in sent_splitter(p)]
+                # ignore too short/long sentences
+                sentences = [s for s in sentences
+                            if filter_text(s, args.min_length, args.max_length)]
+                if sentences:
+                    # write document to a file
+                    for s in sentences:
+                        assert not '\n' in s, s
+                        assert s, s
+                        output_file.write(s + '\n')
 
-                output_file.write('\n')
+                    output_file.write('\n')
 
-            num_processed_docs += 1
-            if args.debug and num_processed_docs == 1000:
+                num_processed_docs += 1
+                
+                # logging
+                if num_processed_docs % 10000 == 0:
+                    logger.info('processed: {}'.format(num_processed_docs))
+                    break
+
+            if num_processed_docs % 10000 != 0:
                 logger.info('processed: {}'.format(num_processed_docs))
-                break
-
-            # logging
-            if num_processed_docs % 10000 == 0:
-                logger.info('processed: {}'.format(num_processed_docs))
-
-        if num_processed_docs % 10000 != 0:
-            logger.info('processed: {}'.format(num_processed_docs))
 
 
 if __name__ == "__main__":

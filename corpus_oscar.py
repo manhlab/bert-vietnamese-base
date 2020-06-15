@@ -49,7 +49,7 @@ def main(args):
 
             # normalize text
             text = unicodedata.normalize('NFC', text)
-            text = word_tokenize(sentence, format="text")
+            text = word_tokenize(text, format="text")
             paragraphs = re.split(r'\n\n+', text)[1:]
             sentences = [preprocess_text(s) for p in paragraphs
                          for s in sent_splitter(p)]

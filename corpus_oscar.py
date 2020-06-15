@@ -45,7 +45,7 @@ def main(args):
             # normalize text
             text = unicodedata.normalize('NFC', line)
             text = word_tokenize(text,'text').lower()
-            sentences = sent_tokenize(text)
+            sentences = sent_splitter(text)
             sentences = [preprocess_text(s) for s in sentences
                          if filter_text(s, args.min_length, args.max_length)]
             if sentences:

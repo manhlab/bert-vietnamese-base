@@ -6,7 +6,7 @@ import argparse
 
 from logzero import logger
 from underthesea import sent_tokenize
-
+from underthesea import word_tokenize
 class VinaSentenceSplitter(object):
     def __init__(self):
         self
@@ -20,7 +20,8 @@ def preprocess_text(text):
     text = text.replace('、)', ')')
     text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+
+    return word_tokenize(text.strip(),'text')
 
 
 def filter_text(text, min_length, max_length):

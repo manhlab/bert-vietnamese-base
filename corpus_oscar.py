@@ -1,11 +1,12 @@
 import re
+import bz2
 import json
 import unicodedata
 import argparse
-from underthesea import word_tokenize
+
 from logzero import logger
 from underthesea import sent_tokenize
-
+from underthesea import word_tokenize
 class VinaSentenceSplitter(object):
     def __init__(self):
         self
@@ -15,9 +16,9 @@ class VinaSentenceSplitter(object):
 
 def preprocess_text(text):
     text = re.sub(r'、+', '、', text)
-    text = text.replace('»', '"')
-    text = text.replace('|', ' ')
+    text = text.replace(':: ', '')
     text = text.replace('-', '')
+    text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -29,42 +30,33 @@ def filter_text(text, min_length, max_length):
         return False
 
     return True
-
 def main(args):
     sent_splitter = VinaSentenceSplitter()
-
+    num_file=0
     num_processed_docs = 0
-    num_doc = 0 
     with open(args.input_file, 'rt') as input_file:
-        while(input_file):
-            with open(str(args.output_file)+str(num_doc), 'w') as output_file:
-                for line in input_file:
-                    # replace links
+        f = open(args.output_file+ str(num_file), 'w')
+        for line in input_file:
+        
+            if num_processed_docs % 1000000 == 0:
+                num_file+=1
+                f = open(args.output_file+ str(num_file), 'w')
+                logger.info('processed: {}'.format(num_processed_docs))
+            # normalize text
+            text = unicodedata.normalize('NFC', line)
+            text = word_tokenize(text,'text').lower()
+            sentences = sent_tokenize(text)
+            sentences = [preprocess_text(s) for s in sentences
+                         if filter_text(s, args.min_length, args.max_length)]
+            if sentences:
+                # write document to a file
+                for s in sentences:
+                    assert not '\n' in s, s
+                    assert s, s
+                    f.write(s + '\n')
 
-                    # normalize text
-                    text = unicodedata.normalize('NFC', line)
-                    text = word_tokenize(text, format="text")
-                    paragraphs = re.split(r'\n\n+', text)[1:]
-                    sentences = [preprocess_text(s) for p in paragraphs
-                                for s in sent_splitter(p)]
-                    # ignore too short/long sentences
-                    sentences = [s for s in sentences
-                                if filter_text(s, args.min_length, args.max_length)]
-                    if sentences:
-                        # write document to a file
-                        for s in sentences:
-                            assert not '\n' in s, s
-                            assert s, s
-                            output_file.write(s + '\n')
-
-                        output_file.write('\n')
-                    num_processed_docs += 1
-                    
-                    # logging
-                    if num_processed_docs % 10000000 == 0:
-                        logger.info('processed: {}'.format(num_processed_docs))
-                        num_doc+=1
-                        break
+            num_processed_docs += 1
+        
 
 
 if __name__ == "__main__":

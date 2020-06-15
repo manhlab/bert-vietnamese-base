@@ -33,7 +33,7 @@ def filter_text(text, min_length, max_length):
     return True
 
 
-regex_link = re.compile(r'\w+:\/\/\S*')
+regex_link = re.compile(r'\<a href="(.*?)"\>(.*?)\</a\>')
 
 
 def main(args):

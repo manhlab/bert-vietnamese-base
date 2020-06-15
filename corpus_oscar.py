@@ -42,11 +42,8 @@ def main(args):
     with open(args.input_file, 'rt') as input_file:
         with open(str(args.output_file)+str(num_doc), 'w') as output_file:
             for line in input_file:
-                page_item = json.loads(line)
-                text = page_item['text']
-
                 # replace links
-                text = regex_link.sub(r'\2', text)
+                text = regex_link.sub(r'\2', line)
 
                 # normalize text
                 text = unicodedata.normalize('NFC', text)

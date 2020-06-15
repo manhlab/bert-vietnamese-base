@@ -43,7 +43,6 @@ def main(args):
 
                     # normalize text
                     text = unicodedata.normalize('NFC', line)
-                    print(line)
                     text = word_tokenize(text, format="text")
                     paragraphs = re.split(r'\n\n+', text)[1:]
                     sentences = [preprocess_text(s) for p in paragraphs

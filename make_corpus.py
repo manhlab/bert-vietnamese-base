@@ -3,24 +3,24 @@ import bz2
 import json
 import unicodedata
 import argparse
-
+import regex
 from logzero import logger
 from underthesea import sent_tokenize
 from underthesea import word_tokenize
+
 class VinaSentenceSplitter(object):
     def __init__(self):
         self
     def __call__(self, text):
         return sent_tokenize(text)
 
-
 def preprocess_text(text):
-    text = re.sub(r'、+', '、', text)
-    text = text.replace(':: ', '')
+    text = re.sub(r'、+', '', text)
+    text = text.replace('(、', '(')
     text = text.replace('、)', ')')
     text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
-
+    text = regex.sub(r'[^\p{Latin}]', u'', text)
     return word_tokenize(text.strip(),'text')
 
 
@@ -32,19 +32,18 @@ def filter_text(text, min_length, max_length):
 
     return True
 
-
 regex_link = re.compile(r'\<a href="(.*?)"\>(.*?)\</a\>')
 
 
 def main(args):
     sent_splitter = VinaSentenceSplitter()
-
+    
     num_processed_docs = 0
     with bz2.open(args.input_file, 'rt') as input_file, \
          open(args.output_file, 'w') as output_file:
         for line in input_file:
             page_item = json.loads(line)
-            text = page_item['text']
+            text = page_item['text'].lower()
 
             # replace links
             text = regex_link.sub(r'\2', text)

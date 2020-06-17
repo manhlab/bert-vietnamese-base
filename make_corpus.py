@@ -20,7 +20,7 @@ def preprocess_text(text):
     text = text.replace('、)', ')')
     text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
-    text = regex.sub(r'[^\p{Latin}]', u'', text)
+    text = regex.sub(r'[^\p{Latin}]', u' ', text)
     return text.strip()
 
 

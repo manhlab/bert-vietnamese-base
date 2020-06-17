@@ -21,7 +21,7 @@ def preprocess_text(text):
     text = text.replace('()', '')
     text = re.sub(r'\s+', ' ', text)
     text = regex.sub(r'[^\p{Latin}]', u'', text)
-    return word_tokenize(text.strip(),'text')
+    return text.strip()
 
 
 def filter_text(text, min_length, max_length):

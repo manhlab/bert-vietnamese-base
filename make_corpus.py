@@ -6,7 +6,6 @@ import argparse
 import regex
 from logzero import logger
 from underthesea import sent_tokenize
-from underthesea import word_tokenize
 
 class VinaSentenceSplitter(object):
     def __init__(self):

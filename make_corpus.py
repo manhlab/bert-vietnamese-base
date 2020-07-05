@@ -24,7 +24,7 @@ elif lcode == 'zh':
     import jieba # See https://pypi.python.org/pypi/jieba/
     print("jieba succesfuly loaded!")
 elif lcode == 'vi':
-    from pyvi.pyvi import ViTokenizer # See https://pypi.python.org/pypi/pyvi
+    from pyvi import ViTokenizer # See https://pypi.python.org/pypi/pyvi
     print("pyvi succesfuly loaded!")
 elif lcode == 'th':  
     import pythai # See https://pypi.python.org/pypi/pythai  

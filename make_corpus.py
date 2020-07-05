@@ -1,96 +1,168 @@
-import re
-import bz2
-import json
-import unicodedata
+# coding: utf-8
 import argparse
+import codecs
+import lxml.etree as ET
+import os
 import regex
-from logzero import logger
-from underthesea import sent_tokenize
 
-class VinaSentenceSplitter(object):
-    def __init__(self):
-        self
-    def __call__(self, text):
-        return sent_tokenize(text)
+# arguments setting 
+parser = argparse.ArgumentParser()
+parser.add_argument('--lcode', help='ISO 639-1 code of target language. See `lcodes.txt`.')
+parser.add_argument('--max_corpus_size', type=int, default=1000000000, help='the maximum size of the corpus. Feel free to adjust it according to your computing power.')
+args = parser.parse_args()
 
-def preprocess_text(text):
-    text = re.sub(r'、+', '', text)
-    text = text.replace('(、', '(')
-    text = text.replace('、)', ')')
-    text = text.replace('()', '')
-    text = re.sub(r'\s+', ' ', text)
-    text = regex.sub(r'[^\p{Latin}]', u' ', text)
-    return text.strip()
-
-
-def filter_text(text, min_length, max_length):
-    if re.search(r'\| *\|+', text):
-        return False
-    if len(text) < min_length or len(text) > max_length:
-        return False
-
-    return True
-
-regex_link = re.compile(r'\<a href="(.*?)"\>(.*?)\</a\>')
-
-
-def main(args):
-    sent_splitter = VinaSentenceSplitter()
+lcode = args.lcode
+if lcode == 'ko':
+    from konlpy.tag import Kkma # pip install konlpy. See http://konlpy.org/en/v0.4.4/ for further information.
+    kkma = Kkma()
+    print("kkma succesfuly loaded!")
+elif lcode == 'ja':
+    import MeCab # See https://pypi.python.org/pypi/mecab-python/0.996
+    mecab = MeCab.Tagger("-Owakati")
+    print("mecab succesfuly loaded!")
+elif lcode == 'zh':
+    import jieba # See https://pypi.python.org/pypi/jieba/
+    print("jieba succesfuly loaded!")
+elif lcode == 'vi':
+    from pyvi.pyvi import ViTokenizer # See https://pypi.python.org/pypi/pyvi
+    print("pyvi succesfuly loaded!")
+elif lcode == 'th':  
+    import pythai # See https://pypi.python.org/pypi/pythai  
+    print("pythai succesfuly loaded!")
+# elif lcode == 'ar':
+#     os.environ['CLASSPATH'] = "../stanford-segmenter-2015-12-09"
+#     from nltk.tokenize.stanford_segmenter import StanfordSegmenter
+#     segmenter = StanfordSegmenter(path_to_jar="../stanford-segmenter-2015-12-09/stanford-segmenter-3.6.0.jar", 
+#                                path_to_sihan_corpora_dict="../stanford-segmenter-2015-12-09/data", 
+#                                path_to_model="../stanford-segmenter-2015-12-09/data/pku.gz", 
+#                                path_to_dict="../stanford-segmenter-2015-12-09/data/dict-chris6.ser.gz")
+#     print "StanfordSegmenter succesfuly loaded!"
     
-    num_processed_docs = 0
-    with bz2.open(args.input_file, 'rt') as input_file, \
-         open(args.output_file, 'w') as output_file:
-        for line in input_file:
-            page_item = json.loads(line)
-            text = page_item['text'].lower()
+max_corpus_size = args.max_corpus_size
+fname = "{}wiki-20161201-pages-articles-multistream.xml".format(lcode)    
 
-            # replace links
-            text = regex_link.sub(r'\2', text)
+def clean_text(text):
+    global lcode
+    
+    # Common
+    text = regex.sub("(?s)<ref>.+?</ref>", "", text) # remove reference links
+    text = regex.sub("(?s)<[^>]+>", "", text) # remove html tags
+    text = regex.sub("&[a-z]+;", "", text) # remove html entities
+    text = regex.sub("(?s){{.+?}}", "", text) # remove markup tags
+    text = regex.sub("(?s){.+?}", "", text) # remove markup tags
+    text = regex.sub("(?s)\[\[([^]]+\|)", "", text) # remove link target strings
+    text = regex.sub("(?s)\[\[([^]]+\:.+?]])", "", text) # remove media links
+    
+    text = regex.sub("[']{5}", "", text) # remove italic+bold symbols
+    text = regex.sub("[']{3}", "", text) # remove bold symbols
+    text = regex.sub("[']{2}", "", text) # remove italic symbols
+    
+    if lcode in ['ko']: # korean
+        text = regex.sub(u"[^ \r\n\p{Hangul}.?!]", " ", text) # Replace unacceptable characters with a space.
+    elif lcode in ['ja']: # japanese
+        text = regex.sub(u"[^\r\n\p{Han}\p{Hiragana}\p{Katakana}ー。！？]", "", text)
+    elif lcode in ['zh']: # chinsese
+        text = regex.sub(u"[^\r\n\p{Han}。！？]", "", text)
+    elif lcode in ['th']: # thai
+        text = regex.sub(u"[^ \r\n\p{Thai}.?!]", " ", text)
+    elif lcode in ['ru']: # russian
+        text = regex.sub(u"[^ \r\n\p{Cyrillic}.?!\-]", " ", text)
+        text = text.lower()
+#     elif lcode in ['ar']: # arabic
+#         text = regex.sub(u"[^ \r\n\p{Arabic}.?!\-]", " ", text)
+    elif lcode in ['hi']: # hindi
+        text = regex.sub(u"[^ \r\n\p{Devanagari}.।?!\-]", " ", text)
+    elif lcode in ['bn']: # bengali
+        text = regex.sub(u"[^ \r\n\p{Bengali}.।?!\-]", " ", text)
+    elif lcode in ['de']: # german
+        text = regex.sub(u"[^ \r\n\p{Latin}\-'‘’.?!]", " ", text)
+    else: # Mostly european languages
+        text = regex.sub(u"[^ \r\n\p{Latin}\-'‘’.?!]", " ", text)
+        text = text.lower()
+    
+    # Common
+    text = regex.sub("[ ]{2,}", " ", text) # Squeeze spaces.
+    return text
 
-            # normalize text
-            text = unicodedata.normalize('NFKC', text)
+def sentence_segment(text):
+    '''
+    Args:
+      text: A string. A unsegmented paragraph.
+    
+    Returns:
+      A list of sentences.
+    '''
+    global lcode
+    if lcode in ['ja', 'zh']:
+        sents = regex.split(u"([。！？])?[\n]+|[。！？]", text) 
+    elif lcode in ['th']:
+        sents = text.split("[\n]+") 
+    elif lcode in ['hi', 'bn']: # hindi, bengali
+        sents = regex.split(u"([.।?!])?[\n]+|[.।?!] ", text)
+    elif lcode in ['de']: # german
+        sents = regex.split("([.?!])?[\n]+|[.?!] ", text)
+        sents = [sent[0].lower() + sent[1:] for sent in sents if sent is not None and len(sent) > 1]
+    else:
+        sents = regex.split("([.?!])?[\n]+|[.?!] ", text)
+    return sents
+        
+def word_segment(sent):
+    '''
+    Args:
+      sent: A string. A sentence.
+    
+    Returns:
+      A list of words.
+    '''
+    global lcode
+    if lcode in ['ko']:
+        words = [word for word, _ in kkma.pos(sent)]
+    elif lcode in ['ja']:
+        words = mecab.parse(sent.encode('utf8')).split() 
+    elif lcode in ['th']:
+        words = pythai.split(sent)
+    elif lcode in ['vi']:
+        words = ViTokenizer.tokenize(sent).split()        
+    elif lcode in ['zh']:
+        words = list(jieba.cut(sent, cut_all=False)) 
+#     elif lcode in ['ar']:
+#         words = segmenter.segment(sent).split()
+    else: # Mostly european languages
+        words = sent.split()
+    
+    return words
 
-            paragraphs = re.split(r'\n\n+', text)[1:]
-            sentences = [preprocess_text(s) for p in paragraphs
-                         for s in sent_splitter(p)]
-            # ignore too short/long sentences
-            sentences = [s for s in sentences
-                         if filter_text(s, args.min_length, args.max_length)]
-            if sentences:
-                # write document to a file
-                for s in sentences:
-                    assert not '\n' in s, s
-                    assert s, s
-                    output_file.write(s + '\n')
-
-                output_file.write('\n')
-
-            num_processed_docs += 1
-            if args.debug and num_processed_docs == 1000:
-                logger.info('processed: {}'.format(num_processed_docs))
-                break
-
-            # logging
-            if num_processed_docs % 10000 == 0:
-                logger.info('processed: {}'.format(num_processed_docs))
-
-        if num_processed_docs % 10000 != 0:
-            logger.info('processed: {}'.format(num_processed_docs))
-
+def build_corpus():
+    global lcode, max_corpus_size, fname
+    with codecs.open("data/{}.txt".format(lcode), 'w', 'utf-8') as fout:
+        i = 1
+        j = 1
+        ns = "{http://www.mediawiki.org/xml/export-0.10/}" # namespace
+        for _, elem in ET.iterparse("data/{}".format(fname), tag=ns+"text"):
+            running_text = elem.text
+            try:
+                running_text = clean_text(running_text)
+                sents = sentence_segment(running_text)
+                for sent in sents:
+                    if sent is not None:
+                        words = word_segment(sent)
+                        if len(words) > 10:
+                            if lcode in ['ja']:
+                                fout.write(" ".join(words).decode('utf8') + "\n")
+                            else:
+                                fout.write(" ".join(words) + "\n")
+                                
+            except:
+                continue # it's okay as we have a pretty big corpus!
+            elem.clear() # We need to save memory!
+            if i % 1000 == 0: 
+                print i,
+                fsize = os.path.getsize("data/{}.txt".format(lcode))
+                if fsize > max_corpus_size:
+                    break
+            i += 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input_file', type=str, required=True,
-        help='preprocessed Wikipedia articles file (.bz2)')
-    parser.add_argument('--output_file', type=str, required=True,
-        help='output corpus file')
-    parser.add_argument('--min_length', type=int, default=16,
-        help='only extract sentences with no less than N characters [16]')
-    parser.add_argument('--max_length', type=int, default=1024,
-        help='only extract sentences with no more than N characters [1024]')
-    parser.add_argument('--Vina_dict_path', type=str,
-        help='path to Vina dictionary')
-    parser.add_argument('--debug', action='store_true')
-    args = parser.parse_args()
-
-    main(args)
+    build_corpus()
+    
+    print "Done"

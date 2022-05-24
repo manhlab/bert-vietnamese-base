@@ -1,6 +1,6 @@
 underthesea
 transformers==2.2.0
-tensorflow==1.4.0
+tensorflow==2.6.4
 
 sentencepiece
 logzero
